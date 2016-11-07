@@ -323,7 +323,7 @@ loglinear <- function(x, scorefun, degrees = list(4, 2, 2), grid,
                                         sep = "", collapse = "\n")),
                       class = c("anova", "data.frame"))
     if (choose) {
-      glmi <- glmselect(atab, choosemethod, chip)
+      glmi <- glmselect(atab, z = out, choosemethod, chip)
       stab <- as.freqtab(cbind(xd[, 1:nx],
                                out[[glmi]]$fitted),
                          scales = scales(x, 1:nx))
@@ -339,12 +339,13 @@ loglinear <- function(x, scorefun, degrees = list(4, 2, 2), grid,
     return(as.freqtab(cbind(xd[, 1:nx],
                             out$fitted), scales = scales(x, 1:nx)))
   else return(out$fitted)
+  
 }
 
 #----------------------------------------------------------------
 # Internal function for selecting model from anova data.frame
 
-glmselect <- function(x, choosemethod = c("chi", "chi","g2","ft", "cr" "aic", "bic","caic", "goodman"),
+glmselect <- function(x, z, choosemethod = c("chi","g2","ft", "cr", "aic","bic","caic", "goodman"),
                       chip) {
   
   if (class(x)[1] != "anova")
@@ -358,27 +359,34 @@ glmselect <- function(x, choosemethod = c("chi", "chi","g2","ft", "cr" "aic", "b
     out <- ifelse(any(chib, na.rm = T),
                   max(which(chib)), 1)
   }
+  if (choosemethod == "ft") {
+    lapply(z, function(y) ft(y$y, fitted(y)))
+    out<- which.min(y$ft)
+  }
+  if (choosemethod == "cr") {
+    lapply(z, function(y) cr(y$y, fitted(y)))
+    out<- which.min(y$cr)
+  }
+  
+  if (choosemethod == "g2") {
+    lapply(z, function(y) g2(y$y, fitted(y)))
+    out<- which.min(y$g2)
+  }
+  
+  if (choosemethod == "caic") {
+    lapply(z, function(y) caic(y$y, fitted(y)))
+    out<- which.min(y$caic)
+  }
+  
+  if (choosemethod == "goodman") {
+    lapply(z, function(y) goodman(y$y, fitted(y)))
+    out<- which.min(y$goodman)
+  }
+  
   else if (choosemethod == "aic")
     out <- which.min(x$AIC)
   else if (choosemethod == "bic")
     out <- which.min(x$BIC)
-  else if (choosemethod == "ft") {
-    if (missing(chift))
-      chift <-  sum((sqrt(nm) + sqrt (nm+1) -sqrt (4*nm+1))^2)
-    chib <- x[, 7] < chift
-    out <- ifelse(any(chib, na.rm = T),
-                  min(which(chib)), 1)
-  }
-  else if (choosemethod == "cr") {
-    if (missing(chift))
-      chicr <-  1.8 * sum (nm * (nm/nm)^ (2/3)-1)
-    chib <- x[, 7] < chift
-    out <- ifelse(any(chib, na.rm = T),
-                  min(which(chib)), 1)
-  }
-  
-
-  
   return(out)
 }
 
@@ -440,6 +448,51 @@ sf <- function(x, degrees, grid, stepup = FALSE, compare = stepup) {
   }
   return(scorefun)
 }
+
+# Definemodel selection function
+# (Freeman-Turkey, Cressie-Read,likelihood ratio chi-square,CAIC, Goodman)
+
+ft <- function(x, y, ...) {
+  if (length(x) != length(y))
+    stop("'x' and 'y' must be same length")
+  out <- sum((sqrt(x) + sqrt (x+1) -sqrt (4*y+1))^2)
+  return(out)
+  
+}
+
+
+cr <- function(x, y, ...) {
+  if (length(x) != length(y))
+    stop("'x' and 'y' must be same length")
+  out <- 1.8 * sum (x * (x/y)^ (2/3)-1)
+  return(out)
+}
+
+
+g2 <- function(x, y, ...) {
+  if (length(x) != length(y))
+    stop("'x' and 'y' must be same length")
+  if (x = 0)
+    return (x$values!=0)
+  out <- 2 * sum (x * (log(x/y)))
+  return(out)
+}
+
+
+caic <- function(x, y, ...) {
+  nc <- ncol(x)
+  out <- g2 + (1 + log(nc)) * (length(coefficients(x)) + 1)
+  return(out)
+}
+
+goodman <- function(x, y, ...) {
+  nc <- ncol(x)
+  out <- abs((g2/nc-1)-1)
+  return(out)
+}
+
+
+
 
 #----------------------------------------------------------------
 # Frequency adjustment
@@ -539,4 +592,3 @@ freqavg <- function(x, jmin = 1, asfreqtab = FALSE, ...) {
   else
     return(x[, 7])
 }
-
