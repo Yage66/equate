@@ -394,6 +394,7 @@ glmselect <- function(x, z, choosemethod = c("chi","g2","ft", "cr", "aic","bic",
 # Internal function for creating score function and models
 
 sf <- function(x, degrees, grid, stepup = FALSE, compare = stepup) {
+<<<<<<< HEAD
   x <- as.data.frame(x)
   nx <- ncol(x) - 1
   if (missing(grid)) {
@@ -466,6 +467,61 @@ cr <- function(x, y, ...) {
     stop("'x' and 'y' must be same length")
   out <- 1.8 * sum (x * (x/y)^ (2/3)-1)
   return(out)
+=======
+	x <- as.data.frame(x)
+	nx <- ncol(x) - 1
+	if (missing(grid)) {
+		if (length(degrees) < nx) # must be at least 0 for higher orders
+			degrees[(length(degrees) + 1):nx] <- 0
+		degrees <- lapply(degrees, function(y)
+			rep(y, nx)[1:nx])
+		# Start grid without intercept
+		grid <- cbind(expand.grid(lapply(degrees[[1]],
+			function(y) 0:y))[-1, ])
+		# Remove higher order interactions as necessary
+		if (nx > 1) {
+			for(i in 2:nx) {
+				# Make sure higher orders don't contain larger powers
+				# They're already excluded in grid
+				#degrees[[i]] <- pmin(degrees[[i - 1]],
+				#	degrees[[i]])
+				rm1 <- apply(grid, 1, function(y)
+					sum(y == 0) == (nx - i))
+				rm2 <- apply(sapply(1:nx, function(j)
+					grid[, j] > degrees[[i]][j]), 1, any)
+				grid <- grid[!(rm1 & rm2), ]
+			}
+			# Sort grid by orders
+			grid <- cbind(grid[order(apply(grid, 1, function(y)
+				sum(y == 0)), decreasing = T), ])
+			os <- factor(nx - apply(grid, 1, function(y)
+				sum(y == 0)))
+			grid <- do.call("rbind", by(grid, os,
+				function(y) y[order(apply(y, 1, max)), ]))
+		}
+		else
+			os <- factor(nx - apply(grid, 1, function(y)
+				sum(y == 0)))
+	}
+	scorefun <- NULL
+	for(j in 1:nrow(grid)) {
+		tempfun <- sapply(1:nx, function(k)
+			x[, k]^grid[j, k])
+		scorefun <- cbind(scorefun,
+			apply(tempfun, 1, prod))
+	}
+	dimnames(scorefun) <- NULL
+	colnames(scorefun) <- apply(grid, 1, paste,
+		collapse = ".")
+	if (stepup | compare) {
+		# Create model index
+	  mnames <- unique(paste(os, apply(grid, 1, max), sep = "."))
+	  attr(scorefun, "mnames") <- mnames
+	  attr(scorefun, "models") <- match(paste(os,
+			apply(grid, 1, max), sep = "."), mnames)
+	}
+	return(scorefun)
+>>>>>>> upstream/master
 }
 
 
